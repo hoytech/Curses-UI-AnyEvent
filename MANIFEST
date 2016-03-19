@@ -1,0 +1,6 @@
+Changes
+lib/Curses/UI/AnyEvent.pm
+Makefile.PL
+MANIFEST
+t/basic.t
+t/fakelib/Curses.pm

@@ -100,9 +100,19 @@ Curses::UI::AnyEvent - Sub-class of Curses::UI for AnyEvent
 
 Very simple integration with L<Curses::UI> and L<AnyEvent>. Just create a C<Curses::UI::AnyEvent> object instead of a C<Curses::UI> one and use it as normal.
 
-You'll probably want to install some AnyEvent watchers before you call C<mainloop()>.
+You'll probably want to install some AnyEvent watchers before you call C<mainloop()>. Alternatively, if you want to setup the async handlers without blocking, you can use the C<startAsync> method:
 
-Seems to work well but there is probably some stuff missing. I haven't tested mouse integration yet for example. L<Curses::UI::POE> seems to do a lot more stuff for some reason...
+    $cui->startAsync();
+
+    ## add some other handlers...
+
+    AE::cv->recv; ## block here instead
+
+Most things work, including mouse support.
+
+=head1 BUGS
+
+There are a few places that call `do_one_event()` in a loop instead of falling back to `mainloop()`'s loop so they will busy-loop until a key is pressed. The three cases I know about are: dialogs, search windows, and fatal error screens.
 
 =head1 SEE ALSO
 

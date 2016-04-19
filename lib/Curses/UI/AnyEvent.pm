@@ -8,24 +8,39 @@ use AnyEvent;
 use base qw( Curses::UI );
 
 
-sub mainloop {
+
+sub startAsync {
     my $self = shift;
 
     $self->do_one_event;
 
-    my $w = AE::io \*STDIN, 0, sub {
+    $self->{_async_watcher} = AE::io \*STDIN, 0, sub {
         $self->do_one_event;
     };
+}
+
+sub stopAsync {
+    my $self = shift;
+
+    delete $self->{_async_watcher};
+}
+
+sub mainloop {
+    my $self = shift;
+
+    $self->startAsync();
 
     $self->{_cv} = AE::cv;
-
     $self->{_cv}->recv;
+    delete $self->{_cv};
+
+    $self->stopAsync();
 }
 
 sub mainloopExit {
     my $self = shift;
 
-    if ($self->{_cv}) {
+    if (exists $self->{_cv}) {
         $self->{_cv}->send();
     } else {
         warn "Called mainloopExit but mainloop wasn't running";

@@ -15,7 +15,11 @@ sub startAsync {
     $self->do_one_event;
 
     $self->{_async_watcher} = AE::io \*STDIN, 0, sub {
-        $self->do_one_event;
+        $self->do_one_event($self->{_modal_object});
+
+        if (defined $self->{_modal_object} && defined $self->{_modalfocus_cv} && !$self->{_modal_object}->{-has_modal_focus}) {
+            $self->{_modalfocus_cv}->send();
+        }
     };
 }
 
@@ -51,6 +55,41 @@ sub char_read {
     my $self = shift;
 
     $self->Curses::UI::Common::char_read(0); ## Ignore timeout passed in to us, hard-code to 0
+}
+
+
+sub tempdialog() {
+    my $self = shift;
+    my $class = shift;
+    my %args = @_;
+
+    my $cb = delete $args{-cb} || sub {};
+
+    my $id = "__window_$class";
+
+    my $dialog = $self->add($id, $class, %args);
+
+    $self->{_modalfocus_cv} = AE::cv;
+    $self->{_modal_object} = $dialog;
+
+    # "Fake" focus for this object.
+    $dialog->{-has_modal_focus} = 1;
+    $dialog->focus;
+    $dialog->draw;
+
+    $self->{_modalfocus_cv}->cb(sub {
+        delete $self->{_modalfocus_cv};
+        delete $self->{_modal_object};
+
+        $dialog->{-focus} = 0;
+        $dialog->{-has_modal_focus} = 0;
+
+        my $return = $dialog->get;
+        $self->delete($id);
+        $self->root->focus(undef, 1);
+
+        $cb->($return);
+    });
 }
 
 
@@ -96,6 +135,7 @@ Curses::UI::AnyEvent - Sub-class of Curses::UI for AnyEvent
 
     $cui->mainloop();
 
+
 =head1 DESCRIPTION
 
 Very simple integration with L<Curses::UI> and L<AnyEvent>. Just create a C<Curses::UI::AnyEvent> object instead of a C<Curses::UI> one and use it as normal.
@@ -110,9 +150,28 @@ You'll probably want to install some AnyEvent watchers before you call C<mainloo
 
 Most things work, including mouse support.
 
+
+=head1 DIALOGS
+
+L<Curses::UI> unfortunately implements a separate event loop in order to handle modal dialogs. This conflicts with our AnyEvent loop so it needed to be stubbed out by replacing the internal C<tempdialog> method. Informational dialogs work normally, except the return immediately instead of waiting for the dialog to be dismissed:
+
+    $cui->dialog("Some information: blah blah blah");
+
+If you wish to perform some action after the dialog is dismissed, or in the case of query dialogs you wish to access the value, there is a new C<-cb> parameter that accepts a callback:
+
+    $cui->question(-question => "What is your name?",
+                   -cb => sub {
+                              my $name = shift;
+                              ## ...
+                          });
+
+Note that while a dialog is active, all keypresses are routed to that dialog instead of the main screen. However, since the main event loop is still active, it can still be processing externally triggered or timed events.
+
+
 =head1 BUGS
 
-There are a few places that call `do_one_event()` in a loop instead of falling back to `mainloop()`'s loop so they will busy-loop until a key is pressed. The three cases I know about are: dialogs, search windows, and fatal error screens.
+There are still a few places that call `do_one_event()` in a loop instead of using the AnyEvent loop so they will busy-loop until dismissed by the user and no background events will be processed. The cases I know about are search windows and fatal error screens. I may stub these out similarly to dialogs if I need them (patches welcome).
+
 
 =head1 SEE ALSO
 
@@ -124,9 +183,11 @@ L<AnyEvent>
 
 L<Curses::UI::POE>
 
+
 =head1 AUTHOR
 
 Doug Hoyte, C<< <doug@hcsw.org> >>
+
 
 =head1 COPYRIGHT & LICENSE
 

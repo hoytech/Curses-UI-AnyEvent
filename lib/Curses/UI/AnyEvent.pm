@@ -1,6 +1,6 @@
 package Curses::UI::AnyEvent;
 
-our $VERSION = '0.100';
+our $VERSION = '0.101';
 
 use strict;
 
@@ -153,9 +153,10 @@ Most things work, including mouse support.
 
 =head1 DIALOGS
 
-L<Curses::UI> unfortunately implements a separate event loop in order to handle modal dialogs. This conflicts with our AnyEvent loop so it needed to be stubbed out by replacing the internal C<tempdialog> method. Informational dialogs work normally, except the return immediately instead of waiting for the dialog to be dismissed:
+L<Curses::UI> unfortunately implements a separate event loop in order to handle modal dialogs. This conflicts with our AnyEvent loop so it needed to be stubbed out by replacing the internal C<tempdialog> method. Informational dialogs work normally, except they return immediately instead of waiting for the dialog to be dismissed:
 
     $cui->dialog("Some information: blah blah blah");
+    ## ^^ Returns immediately, not when dialog dismissed!
 
 If you wish to perform some action after the dialog is dismissed, or in the case of query dialogs you wish to access the value, there is a new C<-cb> parameter that accepts a callback:
 
